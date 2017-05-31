@@ -1,37 +1,5 @@
 #!/bin/bash
-myip=`ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0' | head -n1`;
-myint=`ifconfig | grep -B1 "inet addr:$myip" | head -n1 | awk '{print $1}'`;
 
-flag=0
-
-#iplist="ip.txt"
-
-https://raw.githubusercontent.com/aliya02/scrirptphp/master/iplist.txt
-
-#if [ -f iplist ]
-#then
-
-iplist="iplist.txt"
-
-lines=`cat $iplist`
-#echo $lines
-
-for line in $lines; do
-#        echo "$line"
-        if [ "$line" = "$myip" ]
-        then
-                flag=1
-        fi
-
-done
-
-
-if [ $flag -eq 0 ]
-then
-   echo  "Hanya IP Terdaftar yang bisa menggunakan Script ini"
-   echo  "Silahkan Hubungi Asep Priyadi SMS/WA 085271696999"
-   exit 1
-fi
 # OpenVPN road warrior installer for Debian-based distros
 
 # This script will only work on Debian-based systems. It isn't bulletproof but
