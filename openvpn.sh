@@ -1,165 +1,125 @@
 #!/bin/bash
-# OpenVPN installer for Debian, Ubuntu and CentOS
+myip=`ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0' | head -n1`;
+myint=`ifconfig | grep -B1 "inet addr:$myip" | head -n1 | awk '{print $1}'`;
 
-# This script will work on Debian, Ubuntu, CentOS and probably other distros
-# of the same families, although no support is offered for them. It isn't
-# bulletproof but it will probably work if you simply want to setup a VPN on
-# your Debian/Ubuntu/CentOS box. It has been designed to be as unobtrusive and
-# universal as possible.
+flag=0
 
-if [[ "$USER" != 'root' ]]; then
-	echo "Maaf, Anda harus menjalankan ini sebagai root :p"
+#iplist="ip.txt"
+
+https://raw.githubusercontent.com/aliya02/scrirptphp/master/iplist.txt
+
+#if [ -f iplist ]
+#then
+
+iplist="iplist.txt"
+
+lines=`cat $iplist`
+#echo $lines
+
+for line in $lines; do
+#        echo "$line"
+        if [ "$line" = "$myip" ]
+        then
+                flag=1
+        fi
+
+done
+
+
+if [ $flag -eq 0 ]
+then
+   echo  "Hanya IP Terdaftar yang bisa menggunakan Script ini"
+   echo  "Silahkan Hubungi Asep Priyadi SMS/WA 085271696999"
+   exit 1
+fi
+# OpenVPN road warrior installer for Debian-based distros
+
+# This script will only work on Debian-based systems. It isn't bulletproof but
+# it will probably work if you simply want to setup a VPN on your Debian/Ubuntu
+# VPS. It has been designed to be as unobtrusive and universal as possible.
+
+if [ $USER != 'root' ]; then
+	echo "Sorry, you need to run this as root"
 	exit
 fi
 
-if [[ ! -e /dev/net/tun ]]; then
-	echo "TUN/TAP tidak tersedia :p"
-	exit
+
+if [ ! -e /dev/net/tun ]; then
+    echo "TUN/TAP is not available"
+    exit
 fi
-
-if grep -q "CentOS release 5" "/etc/redhat-release"; then
-	echo "CentOS 5 terlalu jadul dan tidak didukung :p"
-	exit
-fi
-
-if [[ -e /etc/debian_version ]]; then
-	OS=debian
-	RCLOCAL='/etc/rc.local'
-elif [[ -e /etc/centos-release || -e /etc/redhat-release ]]; then
-	OS=centos
-	RCLOCAL='/etc/rc.d/rc.local'
-	# Needed for CentOS 7
-	chmod +x /etc/rc.d/rc.local
-else
-	echo "Sepertinya Anda tidak menjalankan installer ini pada sistem Debian, Ubuntu atau CentOS"
-	exit
-fi
-
-geteasyrsa () {
-	wget --no-check-certificate -O ~/easy-rsa.tar.gz http://scripts.gapaiasa.com/OpenVPN/easy-rsa-2.2.2.tar.gz
-#	wget --no-check-certificate -O ~/easy-rsa.tar.gz http://script.anekavps.us:81/OpenVPN/easy-rsa-2.2.2.tar.gz
-	tar xzf ~/easy-rsa.tar.gz -C ~/
-	mkdir -p /etc/openvpn/easy-rsa/2.0/
-	cp ~/easy-rsa-2.2.2/easy-rsa/2.0/* /etc/openvpn/easy-rsa/2.0/
-	rm -rf ~/easy-rsa-2.2.2
-	rm -rf ~/easy-rsa.tar.gz
-}
-
-MYIP=$(wget -qO- ipv4.icanhazip.com)
 
 # Try to get our IP from the system and fallback to the Internet.
 # I do this to make the script compatible with NATed servers (lowendspirit.com)
 # and to avoid getting an IPv6.
-IP=$(ip addr | grep 'inet' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | grep -o -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | head -1)
-if [[ "$IP" = "" ]]; then
-		IP=$(wget -qO- ipv4.icanhazip.com)
+IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+if [ "$IP" = "" ]; then
+        IP=$(wget -qO- ipv4.icanhazip.com)
 fi
 
-if [[ -e /etc/openvpn/server.conf ]]; then
+if [ -e /etc/openvpn/server.conf ]; then
 	while :
 	do
 	clear
-		echo "Sepertinya OpenVPN sudah diinstal"
-		echo "Apa yang ingin Anda lakukan?"
+		echo "Looks like OpenVPN is already installed"
+		echo "What do you want to do?"
 		echo ""
-		echo "1) Hapus OpenVPN"
-		echo "2) Keluar"
+		echo "1) Remove OpenVPN"
+		echo "2) Exit"
 		echo ""
-		read -p "Pilih salah satu pilihan [1-2]: " option
+		read -p "Select an option [1-2]:" option
 		case $option in
 			1) 
+			apt-get remove --purge -y openvpn
+			rm -rf /etc/openvpn
+			rm -rf /usr/share/doc/openvpn
+			sed -i '/--dport 53 -j REDIRECT --to-port 1194/d' /etc/rc.local
+			sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0/d' /etc/rc.local
 			echo ""
-			read -p "Apakah Anda benar-benar ingin menghapus OpenVPN? [y/n]: " -e -i n REMOVE
-			if [[ "$REMOVE" = 'y' ]]; then
-				if [[ "$OS" = 'debian' ]]; then
-					apt-get remove --purge -y openvpn openvpn-blacklist
-				else
-					yum remove openvpn -y
-				fi
-				rm -rf /etc/openvpn
-				rm -rf /usr/share/doc/openvpn*
-				sed -i '/iptables -t nat -A POSTROUTING -s 192.168.100.0/d' $RCLOCAL
-				echo ""
-				echo "OpenVPN dihapus!"
-			else
-				echo ""
-				echo "Penghapusan dibatalkan!"
-			fi
+			echo "OpenVPN removed!"
 			exit
 			;;
 			2) exit;;
 		esac
 	done
 else
-	clear
-	echo "-------------------------- OpenVPN Installer for Debian, Ubuntu, CentOS -------------------------"
-	echo "                             ALL SUPPORTED BY: ZONA VPS UNTUK RAKYAT                             "
-	echo "                     https://www.facebook.com/groups/Zona.VPS.Untuk.Rakyat/                      "
-	#echo "                                    ALL SUPPORTED BY ANEKA VPS                                   "
-	#echo "                               https://www.facebook.com/aneka.vps.us                             "
-	echo "                    DEVELOPED BY YURI BHUANA (fb.com/youree82, 085815002021)                     "
-	echo ""
+	echo 'Selamat Datang di quick OpenVPN "Da[R]kCente[R]" installer'
+	echo "Created by Dimas Yudha Permana, Editor By Asep Priyadi"
 	echo ""
 	# OpenVPN setup and first user creation
-	echo "Saya perlu mengajukan beberapa pertanyaan sebelum memulai setup"
-	echo "Anda dapat membiarkan pilihan default dan hanya tekan enter jika Anda setuju dengan pilihan tersebut"
-	echo ""
-	echo "Pertama saya perlu tahu IPv4 address dari network interface yang OpenVPN gunakan"
+	echo " saya perlu tahu alamat IPv4 yang ingin diinstall OpenVPN"
+	echo "listening to."
 	read -p "IP address: " -e -i $IP IP
 	echo ""
-	echo "Port berapa yang Anda inginkan untuk OpenVPN?"
+	echo "Port untuk OpenVPN?"
 	read -p "Port: " -e -i 1194 PORT
 	echo ""
-	echo "Apakah Anda ingin OpenVPN akan tersedia di port 53 juga?"
-	echo "Hal ini dapat berguna untuk menghubungkan jaringan yang benar-benar ketat"
-	read -p "Listen port 53 [y/n]: " -e -i n ALTPORT
+	echo "Apakah Anda ingin OpenVPN akan tersedia pada port 53 juga?"
+	echo "Hal ini dapat berguna untuk menghubungkan ke restrictive networks"
+	read -p "Listen port 53 [y/n]:" -e -i y ALTPORT
 	echo ""
-	echo "TCP atau UDP server?"
-	echo "   1) TCP server"
-	echo "   2) UDP server"
-	read -p "proto [1-2]: " -e -i 1 proto
-	echo ""
-	echo "Apakah Anda ingin mengaktifkan jaringan internal VPN?"
-	echo "Hal ini dapat memungkinkan antar klien VPN untuk saling berkomunikasi"
-	read -p "Aktifkan jaringan internal VPN [y/n]: " -e -i n INTERNALNETWORK
-	echo ""
-	echo "Apa DNS yang ingin Anda gunakan?"
-	echo "   1) Sistem saat ini"
-	echo "   2) Google DNS"
-	echo "   3) OpenDNS"
-	echo "   4) Level 3"
-	echo "   5) NTT"
-	echo "   6) Hurricane Electric"
-	echo "   7) Yandex"
-	read -p "DNS [1-7]: " -e -i 3 DNS
-	echo ""
-	echo "Terakhir, sebutkan nama untuk cert klien"
-	echo "Tolong, gunakan satu kata saja, tidak ada karakter khusus"
+	echo "Jangan Merubah Nama Client, Lanjut Enter saja"
+	echo "Akan terjadi Error saat download config Apabila Merubah Nama Client."
 	read -p "Nama Client: " -e -i client CLIENT
 	echo ""
 	echo "Oke, itu semua saya butuhkan. Kami siap untuk setup OpenVPN server Anda sekarang"
-	read -n1 -r -p "Tekan sembarang tombol untuk melanjutkan..."
-	if [[ "$OS" = 'debian' ]]; then
-		apt-get update
-		apt-get install openvpn iptables openssl -y
-		cp -R /usr/share/doc/openvpn/examples/easy-rsa/ /etc/openvpn
-		# easy-rsa isn't available by default for Debian Jessie and newer
-		if [[ ! -d /etc/openvpn/easy-rsa/2.0/ ]]; then
-			geteasyrsa
-		fi
-	else
-		# Else, the distro is CentOS
-		yum install epel-release -y
-		yum install openvpn iptables openssl wget -y
-		geteasyrsa
+	read -n1 -r -p "Tekan sembarang tombol untuk melanjutkan,,teken hidung sampe kiamat juga boleh ..."
+	apt-get update
+	apt-get install openvpn iptables openssl -y
+	cp -R /usr/share/doc/openvpn/examples/easy-rsa/ /etc/openvpn
+	# easy-rsa isn't available by default for Debian Jessie and newer
+	if [ ! -d /etc/openvpn/easy-rsa/2.0/ ]; then
+		wget --no-check-certificate -O ~/easy-rsa.tar.gz https://github.com/OpenVPN/easy-rsa/archive/2.2.2.tar.gz
+		tar xzf ~/easy-rsa.tar.gz -C ~/
+		mkdir -p /etc/openvpn/easy-rsa/2.0/
+		cp ~/easy-rsa-2.2.2/easy-rsa/2.0/* /etc/openvpn/easy-rsa/2.0/
+		rm -rf ~/easy-rsa-2.2.2
 	fi
 	cd /etc/openvpn/easy-rsa/2.0/
 	# Let's fix one thing first...
 	cp -u -p openssl-1.0.0.cnf openssl.cnf
-	# Fuck you NSA - 1024 bits was the default for Debian Wheezy and older
-	if [[ "$OS" != 'debian' ]]; then
-		sed -i 's|export KEY_SIZE=1024|export KEY_SIZE=2048|' /etc/openvpn/easy-rsa/2.0/vars
-	fi
+	# Bad NSA - 1024 bits was the default for Debian Wheezy and older
+	#sed -i 's|export KEY_SIZE=1024|export KEY_SIZE=2048|' /etc/openvpn/easy-rsa/2.0/vars
 	# Create the PKI
 	. /etc/openvpn/easy-rsa/2.0/vars
 	. /etc/openvpn/easy-rsa/2.0/clean-all
@@ -192,11 +152,11 @@ dh /etc/openvpn/dh1024.pem
 plugin /usr/lib/openvpn/openvpn-auth-pam.so /etc/pam.d/login
 client-cert-not-required
 username-as-common-name
-server 192.168.100.0 255.255.255.0
+server 10.8.0.0 255.255.255.0
 ifconfig-pool-persist ipp.txt
-;push "redirect-gateway def1"
-;push "dhcp-option DNS 208.67.222.222"
-;push "dhcp-option DNS 208.67.220.220"
+push "redirect-gateway def1"
+push "dhcp-option DNS 8.8.8.8"
+push "dhcp-option DNS 8.8.4.4"
 push "route-method exe"
 push "route-delay 2"
 keepalive 5 30
@@ -204,121 +164,52 @@ cipher AES-128-CBC
 comp-lzo
 persist-key
 persist-tun
-status server-vpn.log 30
+status server-vpn.log
 verb 3
 END
 
 	cd /etc/openvpn/easy-rsa/2.0/keys
-	if [[ "$OS" = 'debian' ]]; then
-		cp ca.crt ca.key dh1024.pem server.crt server.key /etc/openvpn
-	else
-		cp ca.crt ca.key dh2048.pem server.crt server.key /etc/openvpn
-	fi
-	cd /etc/openvpn/
-	# Set the server configuration
-	if [[ "$OS" != 'debian' ]]; then
-		sed -i 's|dh /etc/openvpn/dh1024.pem|dh /etc/openvpn/dh2048.pem|' server.conf
-		sed -i 's|plugin /usr/lib/openvpn/openvpn-auth-pam.so /etc/pam.d/login|plugin /usr/lib/openvpn/plugin/lib/openvpn-auth-pam.so /etc/pam.d/login|' server.conf
-	fi
-	sed -i 's|;push "redirect-gateway def1"|push "redirect-gateway def1"|' server.conf
-	sed -i "s|port 1194|port $PORT|" server.conf
-	# proto server
-	case $proto in
-		1)
-		sed -i "s|proto tcp|proto tcp|" server.conf
-		;;
-		2)
-		sed -i "s|proto tcp|proto udp|" server.conf
-		;;
-	esac
-	# DNS
-	case $DNS in
-		1) 
-		# Obtain the resolvers from resolv.conf and use them for OpenVPN
-		grep -v '#' /etc/resolv.conf | grep 'nameserver' | grep -E -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | while read line; do
-			sed -i "/;push \"dhcp-option DNS 208.67.220.220\"/a\push \"dhcp-option DNS $line\"" server.conf
-		done
-		;;
-		2)
-		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 8.8.8.8"|' server.conf
-		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 8.8.4.4"|' server.conf
-		;;
-		3)
-		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 208.67.222.222"|' server.conf
-		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 208.67.220.220"|' server.conf
-		;;
-		4) 
-		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 4.2.2.2"|' server.conf
-		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 4.2.2.4"|' server.conf
-		;;
-		5) 
-		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 129.250.35.250"|' server.conf
-		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 129.250.35.251"|' server.conf
-		;;
-		6) 
-		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 74.82.42.42"|' server.conf
-		;;
-		7) 
-		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 77.88.8.8"|' server.conf
-		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 77.88.8.1"|' server.conf
-		;;
-	esac
+	cp ca.crt ca.key dh1024.pem server.crt server.key /etc/openvpn
+	sed -i "s/port 1194/port $PORT/" /etc/openvpn/server.conf
 	# Listen at port 53 too if user wants that
-	if [[ "$ALTPORT" = 'y' ]]; then
-		sed -i '/port 1194/a port 53' server.conf
+	if [ $ALTPORT = 'y' ]; then
+		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port 1194
+		sed -i "/# By default this script does nothing./a\iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port 1194" /etc/rc.local
 	fi
 	# Enable net.ipv4.ip_forward for the system
-	if [[ "$OS" = 'debian' ]]; then
-		sed -i 's|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|' /etc/sysctl.conf
-	else
-		# CentOS 5 and 6
-		sed -i 's|net.ipv4.ip_forward = 0|net.ipv4.ip_forward = 1|' /etc/sysctl.conf
-		# CentOS 7
-		if ! grep -q "net.ipv4.ip_forward=1" "/etc/sysctl.conf"; then
-			echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
-		fi
-	fi
+	sed -i 's|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|' /etc/sysctl.conf
 	# Avoid an unneeded reboot
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 	# Set iptables
-	if [[ "$INTERNALNETWORK" = 'y' ]]; then
-		iptables -t nat -A POSTROUTING -s 192.168.100.0/24 ! -d 192.168.100.0/24 -j SNAT --to $IP
-		sed -i "1 a\iptables -t nat -A POSTROUTING -s 192.168.100.0/24 ! -d 192.168.100.0/24 -j SNAT --to $IP" $RCLOCAL
+	if [ $(ifconfig | cut -c 1-8 | sort | uniq -u | grep venet0 | grep -v venet0:) = "venet0" ];then
+      		iptables -t nat -A POSTROUTING -o venet0 -j SNAT --to-source $IP
 	else
-		iptables -t nat -A POSTROUTING -s 192.168.100.0/24 -j SNAT --to $IP
-		sed -i "1 a\iptables -t nat -A POSTROUTING -s 192.168.100.0/24 -j SNAT --to $IP" $RCLOCAL
-	fi
+      		iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP
+      		iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+	fi	
+	sed -i "/# By default this script does nothing./a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP" /etc/rc.local
+	iptables-save
 	# And finally, restart OpenVPN
-	if [[ "$OS" = 'debian' ]]; then
-		/etc/init.d/openvpn restart
-	else
-		# Little hack to check for systemd
-		if pidof systemd; then
-			systemctl restart openvpn@server.service
-			systemctl enable openvpn@server.service
-		else
-			service openvpn restart
-			chkconfig openvpn on
-		fi
-	fi
+	/etc/init.d/openvpn restart
+	# Let's generate the client config
+	mkdir ~/ovpn-$CLIENT
 	# Try to detect a NATed connection and ask about it to potential LowEndSpirit
 	# users
 	EXTERNALIP=$(wget -qO- ipv4.icanhazip.com)
-	if [[ "$IP" != "$EXTERNALIP" ]]; then
+	if [ "$IP" != "$EXTERNALIP" ]; then
 		echo ""
 		echo "Looks like your server is behind a NAT!"
 		echo ""
 		echo "If your server is NATed (LowEndSpirit), I need to know the external IP"
 		echo "If that's not the case, just ignore this and leave the next field blank"
 		read -p "External IP: " -e USEREXTERNALIP
-		if [[ "$USEREXTERNALIP" != "" ]]; then
+		if [ $USEREXTERNALIP != "" ]; then
 			IP=$USEREXTERNALIP
 		fi
 	fi
 	# IP/port set on the default client.conf so we can add further users
 	# without asking for them
-	mkdir ~/ovpn-$CLIENT
-	cd ~/
+
 cat >> ~/ovpn-$CLIENT/$CLIENT.conf <<-END
 client
 proto tcp
@@ -343,31 +234,25 @@ remote $IP $PORT
 ;http-proxy $IP 80
 cipher AES-128-CBC
 END
-
+	
 	cp /etc/openvpn/easy-rsa/2.0/keys/ca.crt ~/ovpn-$CLIENT
+
 	cd ~/ovpn-$CLIENT
+	
 	cp $CLIENT.conf $CLIENT.ovpn
+
+	
 	echo "<ca>" >> $CLIENT.ovpn
 	cat ca.crt >> $CLIENT.ovpn
 	echo -e "</ca>\n" >> $CLIENT.ovpn
-	# proto client
-	case $proto in
-		1)
-		sed -i "s|proto tcp|proto tcp|" $CLIENT.ovpn
-		;;
-		2)
-		sed -i "s|proto tcp|proto udp|" $CLIENT.ovpn
-		;;
-	esac
-	cp $CLIENT.ovpn /home/vps/public_html/
-	cp $CLIENT.ovpn /root/
+	
+	cp client.ovpn /home/vps/public_html/
 	cd ~/
 	rm -rf ovpn-$CLIENT
 	echo ""
-	echo "Selesai!"
+	echo "Setup OpenVPN Telah Selesai!"
 	echo ""
-	echo "Client Config: http://$IP:81/$CLIENT.ovpn or /root/$CLIENT.ovpn"
+	echo "Silahkan Download Config Di http://$IP:81/client.ovpn"
+	echo ""
+    echo "Script Modified by Asep Priyadi"
 fi
-cd ~/
-rm -f /root/IP
-rm -f /root/openvpn.sh
