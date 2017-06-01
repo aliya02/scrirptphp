@@ -356,7 +356,7 @@ service ssh restart
 apt-get -y install dropbear
 sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear
 sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=443/g' /etc/default/dropbear
-sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 80 -p 90 -p 443"/g' /etc/default/dropbear
+sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 80 -p 110 -p 443"/g' /etc/default/dropbear
 echo "/bin/false" >> /etc/shells
 service ssh restart
 service dropbear restart
@@ -443,7 +443,7 @@ http_access allow localhost
 http_access deny all
 http_port 8080
 http_port 3128
-http_port 80
+http_port 90
 coredump_dir /var/spool/squid3
 refresh_pattern ^ftp: 1440 20% 10080
 refresh_pattern ^gopher: 1440 0% 1440
@@ -497,7 +497,7 @@ iptables-restore < /etc/iptables.up.rules
 
 # download script
 cd /usr/bin
-wget -O menu.tar.gz "https://raw.githubusercontent.com/aliya02/update/master/menu.tar.gz"
+wget -O menu.tar.gz "https://raw.githubusercontent.com/aliya02/scrirptphp/master/menu.tar.gz"
 tar -xvf menu.tar.gz
 rm -f menu.tar.gz
 
