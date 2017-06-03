@@ -153,8 +153,8 @@ service ssh restart
 #apt-get -y update
 apt-get -y install dropbear
 sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear
-sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=443/g' /etc/default/dropbear
-sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 109 -p 110"/g' /etc/default/dropbear
+sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=80/g' /etc/default/dropbear
+sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 80 -p 110 -p 443"/g' /etc/default/dropbear
 echo "/bin/false" >> /etc/shells
 echo "/usr/sbin/nologin" >> /etc/shells
 service ssh restart
@@ -265,7 +265,7 @@ service webmin restart
 service vnstat restart
 
 # install pptp vpn
-wget $source/Debian7/pptp.sh
+wget https://raw.githubusercontent.com/aliya02/scrirptphp/master/pptp.sh
 chmod +x pptp.sh
 ./pptp.sh
 
